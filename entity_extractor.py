@@ -95,7 +95,13 @@ Now, process the following query:
     return extracted
 
 if __name__ == '__main__':
-    print('Enter query:', end=' ')
-    query = input()
-    result = extract_fund_entities(query)
-    print(result)
+    while True:
+        print('Entity extractor utility. Type in "Stop" to exit the utility')
+        print('Type in your query:', end=' ')
+        query = input()
+        if query.lower() == 'stop':
+            break
+        results = extract_fund_entities(query)
+        for item in results:
+            print('Fund name:', item['fund_name'])
+            print('Fund attributes:', item['fund_attributes'])
