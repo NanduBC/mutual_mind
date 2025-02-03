@@ -28,17 +28,17 @@ def create_documents_from_dataframe(fund_data):
         docs.append(Document(page_content=doc_content, metadata=metadata))
     return docs
 
-def create_vector_store(documents):
+def create_doc_vector_store(documents):
     embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vector_store = Chroma(
+    doc_vector_store = Chroma(
         collection_name="funds-categorical",
         embedding_function=embedding_model,
         persist_directory='./mutual_funds_store'
         )
     
-    ids_to_delete = vector_store.get()['ids']
+    ids_to_delete = doc_vector_store.get()['ids']
     if ids_to_delete:
-        vector_store.delete(ids=ids_to_delete)
+        doc_vector_store.delete(ids=ids_to_delete)
     batch_size = 1000
     num_batches = len(documents) // batch_size + (1 if len(documents) % batch_size > 0 else 0)
 
@@ -46,9 +46,27 @@ def create_vector_store(documents):
         start_index = iteration * batch_size
         end_index = min(start_index + batch_size, len(documents))
         doc_ids = [doc.metadata['fund_symbol'] for doc in documents[start_index:end_index]]
-        vector_store.add_documents(documents[start_index:end_index])
-    print('Vector store lenght:', len(vector_store.get()['ids']))
-    return vector_store
+        doc_vector_store.add_documents(documents[start_index:end_index])
+    print('Vector store lenght:', len(doc_vector_store.get()['ids']))
+    return doc_vector_store
+
+def create_col_vector_store(mutual_funds):
+    embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    col_vector_store = Chroma(
+        collection_name="cols-store",
+        embedding_function=embedding_model,
+        persist_directory='./mf_cols'
+        )
+
+    col_ids_to_delete = col_vector_store.get()['ids']
+    if col_ids_to_delete:
+        col_vector_store.delete(ids=col_ids_to_delete)
+
+    column_as_doc = []
+    for col in mutual_funds.columns.to_list():
+        column_as_doc.append(Document(page_content=col))
+    col_vector_store.add_documents(column_as_doc)
+    return col_vector_store
 
 if __name__ == '__main__':
     mutual_funds = pd.read_csv('MutualFunds.csv')
@@ -57,8 +75,5 @@ if __name__ == '__main__':
     numeric_features = mutual_funds.select_dtypes(include='float64')
 
     documents = create_documents_from_dataframe(categorical_features)
-    vector_store = create_vector_store(documents)
-
-    # results = vector_store.similarity_search("Franklin", k=5)
-    # for doc in results:
-    #     print(doc.page_content, doc.metadata)
+    doc_vector_store = create_doc_vector_store(documents)
+    col_vector_store = create_col_vector_store(mutual_funds)
