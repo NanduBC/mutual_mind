@@ -16,12 +16,12 @@ def create_documents_from_dataframe(fund_data):
     docs = []
     for item in fund_data.to_dict('records'):
         attributes = []
-        relevant_keys = ['fund_short_name', 'fund_long_name', 'fund_symbol', 'fund_category', 'fund_family', 'management_name']
-        metadata_keys = ['fund_symbol', 'investment_type', 'size_type']
+        relevant_keys = ['fund_long_name']# 'fund_symbol', 'fund_category', 'fund_family', 'management_name']
+        metadata_keys = ['fund_symbol', 'investment_type', 'size_type', 'fund_category', 'fund_family', 'management_name']
         metadata = dict()
         for key,value in item.items():
             if key in relevant_keys:      
-                attributes.append(key+': '+str(value))
+                attributes.append(str(value))
             if key in metadata_keys:
                 metadata[key] = value
         doc_content = '\n'.join(attributes)
