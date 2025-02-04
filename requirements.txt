@@ -1,0 +1,10 @@
+pandas
+chromadb==0.6.3
+llamaapi==0.1.36
+langchain==0.3.16
+langchain-experimental==0.3.4
+langchain-huggingface==0.1.2
+langchain-chroma==0.2.1
+langchain-community==0.3.16
+tqdm==4.67.1
+flask==3.1.0
