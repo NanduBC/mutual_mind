@@ -7,7 +7,9 @@
 <body>
     <h1>Your query was: {{ question }}</h1>
     <h2>Search Results:</h2>
-    <h3>{{results}}</h3>
+    {% for item in results.split('\n') %}
+        <p>{{ item }}</p>
+    {% endfor %}
     <a href="/">Back to Search</a>
 </body>
 </html>
