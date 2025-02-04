@@ -78,6 +78,7 @@ Example "Investment strategy of DWS vs Blackrock global funds in large cap
 Output should not contain text but only JSON parseable from Python code with no \\n or ` as well.
 Now, process the following query:
 """
+    print('Started entity extraction')
     prompt += f'Input: "{query}"'
     llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
     llm = ChatLlamaAPI(client=llama_client, model='llama3-8b', temperature=0)
@@ -91,7 +92,7 @@ Now, process the following query:
     except Exception as e:
         print("Error parsing JSON:", e)
         extracted = {}
-    
+    print('Entity extraction finished')
     return extracted
 
 if __name__ == '__main__':
