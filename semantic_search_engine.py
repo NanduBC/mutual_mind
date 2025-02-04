@@ -47,40 +47,44 @@ class SemanticSearchEngine:
         self.mutual_fund_data = pd.read_csv('MutualFunds.csv').set_index('fund_symbol')
     
     def get_similar_documents(self, query):
+        print('Relevant document retreival started')
         entities = extract_fund_entities(query)
         combined_results = []
         for item in entities: # Ideally only 1 fund per query
             fund_name = item['fund_name']
-            
+
             mapped_fund_attribute_keys = ['fund_long_name']
             for fund_attribute in item['fund_attributes']:
                 mapped_fund_attribute_key = self.col_store.similarity_search(fund_attribute['key'], k=1)[0].page_content
                 mapped_fund_attribute_keys.append(mapped_fund_attribute_key)
 
             retrieved_fund_symbols = [doc.metadata['fund_symbol'] for doc in self.vector_store.similarity_search(fund_name, k=5)]
-            # print(retrieved_fund_symbols)
             item_results = []
             for fund_symbol in retrieved_fund_symbols:
                 relevant_info = self.mutual_fund_data.loc[fund_symbol][mapped_fund_attribute_keys].to_dict()
                 item_results.append(str(relevant_info))
             combined_results.append(item_results)
-        # print(combined_results)
+        print('Relevant document retrieval finished')
         return combined_results
 
     def get_rag_response(self, query):
+        print('Retrieval-augment response generation started')
         retrieved_docs = self.get_similar_documents(query)
         context = '\n'.join([doc for item in retrieved_docs for doc in item])
         
         system_prompt = """
-You are an intelligent semantic search engine that would get the right information about the right funds.
+You are an intelligent and useful semantic search engine that would get the right information about the right funds.
 Context: {}
-Now the output should be human-readable text which will be used by MF salesperson and should be to the point. Do not include any additional info than being asked for. Provide correct info from context if possible, else respond saying it's not possible.
+Now the output should be human-readable text which will be used by MF salesperson and should be to the point.
+Do not include any additional info than being asked for.
+Provide correct info from context if possible, else respond saying it's not possible withotu explictly mentioning the context
 Input: {}
 """.format(context, query)
         llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
         llm = ChatLlamaAPI(client=llama_client, model='llama3-70b', temperature=0)
         message = SystemMessage(content=system_prompt)
         response = llm.invoke([message])
+        print('Retrieval-augment response generation started')
         return context, response.content
 
 if __name__ == '__main__':
