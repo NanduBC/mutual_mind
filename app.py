@@ -1,5 +1,6 @@
+import time
 from flask import Flask, render_template, request
-from semantic_search import get_semantic_search_engine
+from semantic_search_engine import get_semantic_search_engine
 
 app = Flask(__name__)
 
@@ -9,9 +10,11 @@ def home():
 
 @app.route('/search', methods=['POST'])
 def search():
-
     query = request.form['question']
-    _, results = semantic_search_engine.get_rag_response(query)  # Call your semantic search function
+    start_time = time.time()
+    _, results = semantic_search_engine.get_rag_response(query)
+    end_time = time.time()
+    print('Time taken: ', end_time-start_time, 'seconds')
     return render_template('semantic_search_result.html', results=results, question=query)
 
 if __name__ == '__main__':
