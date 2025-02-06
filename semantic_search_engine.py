@@ -11,16 +11,30 @@ from langchain_experimental.llms import ChatLlamaAPI
 from entity_extractor import extract_fund_entities
 
 
-
-semantic_search_engine = None
-
+semantic_search_engine_obj = None
 def get_semantic_search_engine():
-    global semantic_search_engine
-    if semantic_search_engine is None:
-        semantic_search_engine = SemanticSearchEngine()
-    return semantic_search_engine
+    '''
+    Returns the global object for SemanticSearchEngine.
+    Global object pattern is the pythonic variant of Singleton design pattern
+    '''
+    global semantic_search_engine_obj
+    if semantic_search_engine_obj is None:
+        semantic_search_engine_obj = SemanticSearchEngine()
+    return semantic_search_engine_obj
 
 class SemanticSearchEngine:
+    '''
+    A semantic search engine for getting right information about right Mutual funds
+
+    Attributes:
+    ----------
+    vector_store: Vector store for retreiving similar documents to the
+     fund extracted
+    col_store: Vector store for retrieving similar column name of the
+     dataframe given extracted fund attribute
+    mutual_funds_data: In-memory store of the dataframe indexed on
+     `fund_symbol` for near constant retrieval
+    '''
     def __init__(
             self,
             embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
@@ -46,19 +60,42 @@ class SemanticSearchEngine:
         # TODO: Replace dataframe to SQL as storage and retrieval for fund attributes
         self.mutual_fund_data = pd.read_csv('MutualFunds.csv').set_index('fund_symbol')
     
-    def get_similar_documents(self, query):
+    def get_relevant_documents(self, doc_query):
+        '''
+        Returns relevant documents to the `doc_query`. This is done by
+        extracting fund entities like fund_name and fund_attributes and
+        finding documents that are similar to fund_name and cols
+        similar to keys in fund_attribute.
+
+        Parameters:
+        ----------
+        doc_query: User query about details of some fund
+
+        Returns:
+        --------
+        A list of documents for each fund name extracted with relevant
+        fund attributes present
+        '''
         print('Relevant document retreival started')
-        entities = extract_fund_entities(query)
+        entities = extract_fund_entities(doc_query)
+        print('Entities:', entities)
         combined_results = []
-        for item in entities: # Ideally only 1 fund per query
+        for item in entities:
             fund_name = item['fund_name']
 
             mapped_fund_attribute_keys = ['fund_long_name']
             for fund_attribute in item['fund_attributes']:
                 mapped_fund_attribute_key = self.col_store.similarity_search(fund_attribute['key'], k=1)[0].page_content
                 mapped_fund_attribute_keys.append(mapped_fund_attribute_key)
-
-            retrieved_fund_symbols = [doc.metadata['fund_symbol'] for doc in self.vector_store.similarity_search(fund_name, k=5)]
+            try:
+                # retrieved_fund_symbols = [doc.metadata['fund_symbol'] for doc in self.vector_store.similarity_search(fund_name, k=5)]
+                retrieved_fund_symbols = []
+                for doc, relevance_score in self.vector_store.similarity_search_with_relevance_scores(fund_name, k=5):
+                    print('Relevance score for', doc, 'is:', relevance_score)
+                    retrieved_fund_symbols.append(doc.metadata['fund_symbol'])
+            except AttributeError as e:
+                print(str(e))
+                return combined_results
             item_results = []
             for fund_symbol in retrieved_fund_symbols:
                 relevant_info = self.mutual_fund_data.loc[fund_symbol][mapped_fund_attribute_keys].to_dict()
@@ -67,19 +104,31 @@ class SemanticSearchEngine:
         print('Relevant document retrieval finished')
         return combined_results
 
-    def get_rag_response(self, query):
+    def get_context_aware_response(self, query:str):
+        '''
+        Returns context-aware response to the query by using
+        approapriate knowledge base
+
+        Parameters:
+        ----------
+        query: User query regarding details of funds
+
+        Returns:
+        -------
+        Response from an LLM based on the context provided by the query
+        '''
         print('Retrieval-augment response generation started')
-        retrieved_docs = self.get_similar_documents(query)
+        retrieved_docs = self.get_relevant_documents(query)
         context = '\n'.join([doc for item in retrieved_docs for doc in item])
-        
-        system_prompt = """
+
+        system_prompt = f"""
 You are an intelligent and useful semantic search engine that would get the right information about the right funds.
-Context: {}
-Now the output should be human-readable text which will be used by MF salesperson and should be to the point.
+Context: {context}
+Now the output should be human-readable text which should be based on the above context only and should be to the point unless specified.
 Do not include any additional info than being asked for.
-Provide correct info from context if possible, else respond saying it's not possible withotu explictly mentioning the context
-Input: {}
-""".format(context, query)
+Provide correct info from context if possible, else respond saying it's not possible without explictly mentioning the context
+Input: {query}"""
+
         llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
         llm = ChatLlamaAPI(client=llama_client, model='llama3-70b', temperature=0)
         message = SystemMessage(content=system_prompt)
@@ -96,8 +145,11 @@ if __name__ == '__main__':
         if query.lower() == 'stop':
             break
         start_time = time.time()
-        context, response = semantic_search_engine.get_rag_response(query)
+        query_context, query_response = semantic_search_engine.get_context_aware_response(query)
         end_time = time.time()
-        print(response)
+        print('*****************Query Context******************')
+        print(query_context)
+        print('**************************************')
+        print('Your search result is:', query_response)
         print()
         print('Time taken:', end_time-start_time)
