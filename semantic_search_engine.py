@@ -15,7 +15,7 @@ from logger import get_logger
 with open('embedding_model_config.yaml', 'r') as config_file:
     config = yaml.safe_load(config_file)
 
-EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
+EMBEDDING_MODEL_NAME = config['embedding_model']['name']
 
 
 semantic_search_engine_obj = None
