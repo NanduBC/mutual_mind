@@ -4,11 +4,10 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from logger import get_logger
 
 
+EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
 logger = get_logger('Test Similarity Search')
-
-logger.info('Loading embedding model')
-embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-logger.info('Embedding model loaded')
+logger.info('Loading embedding model:%s', EMBEDDING_MODEL_NAME)
+embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
 
 logger.info('Loading vector store')
 vector_store = Chroma(

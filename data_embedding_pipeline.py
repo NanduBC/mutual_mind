@@ -1,20 +1,15 @@
-import os
-import json
-
 import pandas as pd
-import numpy as np
 from tqdm import tqdm
-# from llamaapi import LlamaAPI
 from langchain.schema import Document
-# from langchain_experimental.llms import ChatLlamaAPI
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-# from langchain.schema import SystemMessage
 
 from logger import get_logger
 
 EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
 logger = get_logger('Data Embedding Pipeline')
+logger.info('Loading embedding model:%s', EMBEDDING_MODEL_NAME)
+embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
 
 
 def create_documents_from_dataframe(fund_data: pd.DataFrame):
@@ -57,13 +52,10 @@ def create_doc_vector_store(documents:list[Document]):
      for similarity search
     '''
     logger.info('Vector store creation started')
-    logger.info(f'Loading embedding model:%s', EMBEDDING_MODEL_NAME)
-    embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
     doc_vector_store = Chroma(
         collection_name='funds-categorical',
         embedding_function=embedding_model,
-        persist_directory='./mutual_funds_store'
-        )
+        persist_directory='./mutual_funds_store')
     
     ids_to_delete = doc_vector_store.get()['ids']
     if ids_to_delete:
@@ -74,7 +66,6 @@ def create_doc_vector_store(documents:list[Document]):
     for iteration in tqdm(range(num_batches), desc='Adding documents'):
         start_index = iteration * batch_size
         end_index = min(start_index + batch_size, len(documents))
-        # doc_ids = [doc.metadata['fund_symbol'] for doc in documents[start_index:end_index]]
         doc_vector_store.add_documents(documents[start_index:end_index])
     logger.info('Vector store lenght:%s', len(doc_vector_store.get()['ids']))
     logger.info('Vector store creation completed')
@@ -87,7 +78,6 @@ def create_col_vector_store(fund_data:pd.DataFrame):
     ----------
     mutual_funds: Mutual funds dataframe
     '''
-    embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
     col_vector_store = Chroma(
         collection_name='cols-store',
         embedding_function=embedding_model,
