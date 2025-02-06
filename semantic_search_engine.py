@@ -1,5 +1,6 @@
 import os
 import time
+import yaml
 
 import pandas as pd
 from langchain_chroma import Chroma
@@ -11,8 +12,11 @@ from langchain_experimental.llms import ChatLlamaAPI
 from entity_extractor import extract_fund_entities
 from logger import get_logger
 
+with open('embedding_model_config.yaml', 'r') as config_file:
+    config = yaml.safe_load(config_file)
 
 EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
+
 
 semantic_search_engine_obj = None
 def get_semantic_search_engine():
@@ -46,7 +50,9 @@ class SemanticSearchEngine:
             col_vector_store_collection_name='cols-store'):
         self.logger = get_logger('SemanticSearchEngine')
         self.logger.info('Loading embedding model:%s', EMBEDDING_MODEL_NAME)
-        self.embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+        self.embedding_model = HuggingFaceEmbeddings(
+            model_name=EMBEDDING_MODEL_NAME,
+            encode_kwargs={'normalize_embeddings': config['embedding_model']['normalize_embeddings']})
         self.logger.info('Embedding model loaded')
 
         self.logger.info('Loading vector stores')

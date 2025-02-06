@@ -1,3 +1,5 @@
+import yaml
+
 import pandas as pd
 from tqdm import tqdm
 from langchain.schema import Document
@@ -6,10 +8,15 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 from logger import get_logger
 
-EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
+with open('embedding_model_config.yaml', 'r') as config_file:
+    config = yaml.safe_load(config_file)
+
+EMBEDDING_MODEL_NAME = config['embedding_model']['name']
 logger = get_logger('Data Embedding Pipeline')
 logger.info('Loading embedding model:%s', EMBEDDING_MODEL_NAME)
-embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+embedding_model = HuggingFaceEmbeddings(
+    model_name=EMBEDDING_MODEL_NAME,
+    encode_kwargs={'normalize_embeddings': config['embedding_model']['normalize_embeddings']})
 
 
 def create_documents_from_dataframe(fund_data: pd.DataFrame):
