@@ -11,7 +11,10 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 # from langchain.schema import SystemMessage
 
+from logger import get_logger
+
 EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
+logger = get_logger('Data Embedding Pipeline')
 
 
 def create_documents_from_dataframe(fund_data: pd.DataFrame):
@@ -27,6 +30,7 @@ def create_documents_from_dataframe(fund_data: pd.DataFrame):
     List of `Document`s containing identifiable features for a fund in
     the content and some useful fields in metadata
     '''
+    logger.info('Document creation from dataframe started')
     docs = []
     for item in fund_data.to_dict('records'):
         attributes = []
@@ -40,6 +44,7 @@ def create_documents_from_dataframe(fund_data: pd.DataFrame):
                 metadata[key] = value
         doc_content = '\n'.join(attributes)
         docs.append(Document(page_content=doc_content, metadata=metadata))
+    logger.info('Document creation completed')
     return docs
 
 def create_doc_vector_store(documents:list[Document]):
@@ -48,8 +53,11 @@ def create_doc_vector_store(documents:list[Document]):
 
     Parameters:
     ----------
-    documents: List of `Document`s containing relevant fund fields for similarity search
+    documents: List of `Document`s containing relevant fund fields
+     for similarity search
     '''
+    logger.info('Vector store creation started')
+    logger.info(f'Loading embedding model:%s', EMBEDDING_MODEL_NAME)
     embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
     doc_vector_store = Chroma(
         collection_name='funds-categorical',
@@ -68,7 +76,8 @@ def create_doc_vector_store(documents:list[Document]):
         end_index = min(start_index + batch_size, len(documents))
         # doc_ids = [doc.metadata['fund_symbol'] for doc in documents[start_index:end_index]]
         doc_vector_store.add_documents(documents[start_index:end_index])
-    print('Vector store lenght:', len(doc_vector_store.get()['ids']))
+    logger.info('Vector store lenght:%s', len(doc_vector_store.get()['ids']))
+    logger.info('Vector store creation completed')
 
 def create_col_vector_store(fund_data:pd.DataFrame):
     '''

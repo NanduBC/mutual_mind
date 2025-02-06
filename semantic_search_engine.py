@@ -9,6 +9,7 @@ from langchain.schema import SystemMessage
 from langchain_experimental.llms import ChatLlamaAPI
 
 from entity_extractor import extract_fund_entities
+from logger import get_logger
 
 
 semantic_search_engine_obj = None
@@ -42,11 +43,12 @@ class SemanticSearchEngine:
             doc_vector_store_collection_name='funds-categorical',
             col_vector_store_persist_directory='./mf_cols',
             col_vector_store_collection_name='cols-store'):
-        print('Loading embedding model')
+        self.logger = get_logger('SemanticSearchEngine')
+        self.logger.info('Loading embedding model:%s', embedding_model_name)
         self.embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name)
-        print('Embedding model loaded')
+        self.logger.info('Embedding model loaded')
 
-        print('Loading vector stores')
+        self.logger.info('Loading vector stores')
         self.vector_store = Chroma(
             persist_directory=doc_vector_store_persist_directory,
             embedding_function=self.embedding_model,
@@ -55,8 +57,7 @@ class SemanticSearchEngine:
             persist_directory=col_vector_store_persist_directory,
             embedding_function=self.embedding_model,
             collection_name=col_vector_store_collection_name)
-        print('Vector stores loaded')
-
+        self.logger.info('Vector stores loaded')
         # TODO: Replace dataframe to SQL as storage and retrieval for fund attributes
         self.mutual_fund_data = pd.read_csv('MutualFunds.csv').set_index('fund_symbol')
     
@@ -76,9 +77,9 @@ class SemanticSearchEngine:
         A list of documents for each fund name extracted with relevant
         fund attributes present
         '''
-        print('Relevant document retreival started')
+        self.logger.info('Relevant document retreival started')
         entities = extract_fund_entities(doc_query)
-        print('Entities:', entities)
+        self.logger.info('Entities:%s', entities)
         combined_results = []
         for item in entities:
             fund_name = item['fund_name']
@@ -91,17 +92,17 @@ class SemanticSearchEngine:
                 # retrieved_fund_symbols = [doc.metadata['fund_symbol'] for doc in self.vector_store.similarity_search(fund_name, k=5)]
                 retrieved_fund_symbols = []
                 for doc, relevance_score in self.vector_store.similarity_search_with_relevance_scores(fund_name, k=5):
-                    print('Relevance score for', doc, 'is:', relevance_score)
+                    self.logger.info('Relevance score for %s is %s ', doc.page_content, relevance_score)
                     retrieved_fund_symbols.append(doc.metadata['fund_symbol'])
             except AttributeError as e:
-                print(str(e))
+                self.logger.exception('Error faced while fetching relevant documents')
                 return combined_results
             item_results = []
             for fund_symbol in retrieved_fund_symbols:
                 relevant_info = self.mutual_fund_data.loc[fund_symbol][mapped_fund_attribute_keys].to_dict()
                 item_results.append(str(relevant_info))
             combined_results.append(item_results)
-        print('Relevant document retrieval finished')
+        self.logger.info('Relevant document retrieval finished')
         return combined_results
 
     def get_context_aware_response(self, query:str):
@@ -117,14 +118,14 @@ class SemanticSearchEngine:
         -------
         Response from an LLM based on the context provided by the query
         '''
-        print('Retrieval-augment response generation started')
+        self.logger.info('Retrieval-augment response generation started')
         retrieved_docs = self.get_relevant_documents(query)
         context = '\n'.join([doc for item in retrieved_docs for doc in item])
 
         system_prompt = f"""
 You are an intelligent and useful semantic search engine that would get the right information about the right funds.
 Context: {context}
-Now the output should be human-readable text which should be based on the above context only and should be to the point unless specified.
+Now the output should be human-readable text which should be based on the above context only and should be as concise as possible unless specified otherwise.
 Do not include any additional info than being asked for.
 Provide correct info from context if possible, else respond saying it's not possible without explictly mentioning the context
 Input: {query}"""
@@ -149,7 +150,7 @@ if __name__ == '__main__':
         end_time = time.time()
         print('*****************Query Context******************')
         print(query_context)
-        print('**************************************')
+        print('************************************************')
         print('Your search result is:', query_response)
         print()
         print('Time taken:', end_time-start_time)
