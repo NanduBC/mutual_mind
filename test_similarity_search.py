@@ -1,13 +1,20 @@
+import yaml
+
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from logger import get_logger
 
 
-EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
+with open('embedding_model_config.yaml', 'r') as config_file:
+    config = yaml.safe_load(config_file)
+
+EMBEDDING_MODEL_NAME = config['embedding_model']['name']
 logger = get_logger('Test Similarity Search')
 logger.info('Loading embedding model:%s', EMBEDDING_MODEL_NAME)
-embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+embedding_model = HuggingFaceEmbeddings(
+    model_name=EMBEDDING_MODEL_NAME,
+    encode_kwargs={'normalize_embeddings': config['embedding_model']['normalize_embeddings']})
 
 logger.info('Loading vector store')
 vector_store = Chroma(
