@@ -169,3 +169,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# CSV data files and persisted Vector Stores
+mf_cols/
+mutual_funds_store/
+MutualFunds.csv
