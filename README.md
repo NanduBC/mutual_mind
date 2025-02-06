@@ -11,7 +11,7 @@ MutualMind is a semantic search engine which can provide right information about
 ```
 $ pip install -r requirements.txt
 ```
-4. Run the data embedding pipeline to ingest the csv file, convert it into `Document` and store them along with the embeddings to a vector store.
+4. Execute the data embedding pipeline to ingest the csv file, convert it into `Document` and store them along with the embeddings to a vector store.
 ```
 $ python data_embedding_pipeline.py
 ```
@@ -19,5 +19,23 @@ $ python data_embedding_pipeline.py
 ```
 $ export LLAMA_API_KEY=<YOUR_API_KEY>
 ```
+
+## Running Semantic Search Engine
+
+There are two ways of interaction with the semantic search engine. A Flask-based web interface has been developed with minimal set of features where user can input a query and then search for relevent information about the funds. Same set of queries can be run on command line as well.
+
+### 1. Querying through Web interface
+Run the following script to get the Flask app up and running. And paste the url on a browser to test the app
+```
+$ python app.py
+```
+<> Add images
+### 2. Querying through command line
+Alternatively user can type in query through command line after executing the following script
+```
+$ python semantic_search_engine.py
+```
+To stop the execution, one can type `Stop`
+// Add images
 
 
