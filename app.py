@@ -1,8 +1,12 @@
 import time
 from flask import Flask, render_template, request
+
+from logger import get_logger
 from semantic_search_engine import get_semantic_search_engine
 
+
 app = Flask(__name__)
+logger = get_logger('MutualMindWebServer')
 
 @app.route('/')
 def home():
@@ -21,8 +25,8 @@ def search():
     start_time = time.time()
     context, results = search_engine.get_context_aware_response(query)
     end_time = time.time()
-    print(context)
-    print('Time taken: ', end_time-start_time, 'seconds')
+    logger.info(context)
+    logger.info('Time taken: %s seconds', end_time-start_time)
     return render_template('semantic_search_result.html', results=results, question=query)
 
 if __name__ == '__main__':
