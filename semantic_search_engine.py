@@ -12,6 +12,8 @@ from entity_extractor import extract_fund_entities
 from logger import get_logger
 
 
+EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
+
 semantic_search_engine_obj = None
 def get_semantic_search_engine():
     '''
@@ -38,14 +40,13 @@ class SemanticSearchEngine:
     '''
     def __init__(
             self,
-            embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
             doc_vector_store_persist_directory='./mutual_funds_store',
             doc_vector_store_collection_name='funds-categorical',
             col_vector_store_persist_directory='./mf_cols',
             col_vector_store_collection_name='cols-store'):
         self.logger = get_logger('SemanticSearchEngine')
-        self.logger.info('Loading embedding model:%s', embedding_model_name)
-        self.embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name)
+        self.logger.info('Loading embedding model:%s', EMBEDDING_MODEL_NAME)
+        self.embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
         self.logger.info('Embedding model loaded')
 
         self.logger.info('Loading vector stores')
@@ -89,12 +90,11 @@ class SemanticSearchEngine:
                 mapped_fund_attribute_key = self.col_store.similarity_search(fund_attribute['key'], k=1)[0].page_content
                 mapped_fund_attribute_keys.append(mapped_fund_attribute_key)
             try:
-                # retrieved_fund_symbols = [doc.metadata['fund_symbol'] for doc in self.vector_store.similarity_search(fund_name, k=5)]
                 retrieved_fund_symbols = []
                 for doc, relevance_score in self.vector_store.similarity_search_with_relevance_scores(fund_name, k=5):
                     self.logger.info('Relevance score for %s is %s ', doc.page_content, relevance_score)
                     retrieved_fund_symbols.append(doc.metadata['fund_symbol'])
-            except AttributeError as e:
+            except AttributeError:
                 self.logger.exception('Error faced while fetching relevant documents')
                 return combined_results
             item_results = []
