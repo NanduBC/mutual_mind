@@ -137,7 +137,7 @@ Provide correct info from context if possible, else respond saying it's not poss
 Input: {query}"""
 
         llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
-        llm = ChatLlamaAPI(client=llama_client, model='llama3-70b', temperature=0)
+        llm = ChatLlamaAPI(client=llama_client, model='llama3-70b', temperature=0.1)
         message = SystemMessage(content=system_prompt)
         response = llm.invoke([message])
         print('Retrieval-augment response generation started')

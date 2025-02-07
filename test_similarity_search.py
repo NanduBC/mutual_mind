@@ -30,7 +30,12 @@ while True:
     if query.lower() == 'stop':
         break
     # Perform a similarity search
-    results = vector_store.similarity_search(query, k=3)
-    for doc in results:
-        print(doc.page_content, doc.metadata)
-    print()
+    query = config['embedding_model']['query_prefix']
+    results = vector_store.similarity_search_with_relevance_scores(query, k=3)
+    print('********************************************')
+    for doc, relevance_score in results:
+        print('Document content:', doc.page_content)
+        print('Document metadat:', doc.metadata)
+        print('Document relevance score:', relevance_score)
+        print()
+    print('********************************************')

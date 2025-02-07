@@ -45,6 +45,7 @@ def create_documents_from_dataframe(fund_data: pd.DataFrame):
             if key in metadata_keys:
                 metadata[key] = value
         doc_content = '\n'.join(attributes)
+        doc_content = config['embedding_model']['passage_prefix'] + doc_content
         docs.append(Document(page_content=doc_content, metadata=metadata))
     logger.info('Document creation completed')
     return docs
