@@ -5,9 +5,10 @@ import yaml
 import pandas as pd
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from llamaapi import LlamaAPI
+# from llamaapi import LlamaAPI
 from langchain.schema import SystemMessage
-from langchain_experimental.llms import ChatLlamaAPI
+# from langchain_experimental.llms import ChatLlamaAPI
+from langchain_openai import ChatOpenAI
 
 from entity_extractor import extract_fund_entities
 from logger import get_logger
@@ -128,7 +129,7 @@ class SemanticSearchEngine:
         retrieved_docs = self.get_relevant_documents(query)
         context = '\n'.join([doc for item in retrieved_docs for doc in item])
 
-        system_prompt = f"""
+        prompt = f"""
 You are an intelligent and useful semantic search engine that would get the right information about the right funds.
 Context: {context}
 Now the output should be human-readable text which should be based on the above context only and should be as concise as possible unless specified otherwise.
@@ -136,9 +137,10 @@ Do not include any additional info than being asked for.
 Provide correct info from context if possible, else respond saying it's not possible without explictly mentioning the context
 Input: {query}"""
 
-        llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
-        llm = ChatLlamaAPI(client=llama_client, model='llama3-70b', temperature=0.1)
-        message = SystemMessage(content=system_prompt)
+        # llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
+        # llm = ChatLlamaAPI(client=llama_client, model='llama3-70b', temperature=0.1)
+        llm = ChatOpenAI(model='gpt-4o-mini')
+        message = SystemMessage(content=prompt)
         response = llm.invoke([message])
         print('Retrieval-augment response generation started')
         return context, response.content
