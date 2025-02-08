@@ -5,9 +5,10 @@ import yaml
 import pandas as pd
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from llamaapi import LlamaAPI
+# from llamaapi import LlamaAPI
 from langchain.schema import SystemMessage
-from langchain_experimental.llms import ChatLlamaAPI
+# from langchain_experimental.llms import ChatLlamaAPI
+from langchain_openai import ChatOpenAI
 
 from entity_extractor import extract_fund_entities
 from logger import get_logger
@@ -16,13 +17,15 @@ with open('embedding_model_config.yaml', 'r') as config_file:
     config = yaml.safe_load(config_file)
 
 EMBEDDING_MODEL_NAME = config['embedding_model']['name']
+MIN_RELEVANCE_THRESHOLD = 0.4
+NUM_RETRIEVAL_DOCS = 5
+NUM_RETRIEVAL_COLS = 1
 
 
 semantic_search_engine_obj = None
 def get_semantic_search_engine():
     '''
     Returns the global object for SemanticSearchEngine.
-    Global object pattern is the pythonic variant of Singleton design pattern
     '''
     global semantic_search_engine_obj
     if semantic_search_engine_obj is None:
@@ -31,7 +34,7 @@ def get_semantic_search_engine():
 
 class SemanticSearchEngine:
     '''
-    A semantic search engine for getting right information about right Mutual funds
+    A semantic search engine for getting right information about right mutual funds
 
     Attributes:
     ----------
@@ -67,13 +70,10 @@ class SemanticSearchEngine:
         self.logger.info('Vector stores loaded')
         # TODO: Replace dataframe to SQL as storage and retrieval for fund attributes
         self.mutual_fund_data = pd.read_csv('MutualFunds.csv').set_index('fund_symbol')
-    
-    def get_relevant_documents(self, doc_query):
-        '''
-        Returns relevant documents to the `doc_query`. This is done by
-        extracting fund entities like fund_name and fund_attributes and
-        finding documents that are similar to fund_name and cols
-        similar to keys in fund_attribute.
+
+    def retrieve_relevant_documents(self, doc_query: str):
+        """
+        Retrieves relevant documents based on fund entities and fund attributes in `doc_query`.
 
         Parameters:
         ----------
@@ -83,64 +83,81 @@ class SemanticSearchEngine:
         --------
         A list of documents for each fund name extracted with relevant
         fund attributes present
-        '''
-        self.logger.info('Relevant document retreival started')
+        """
+        self.logger.info('Relevant document started')
         entities = extract_fund_entities(doc_query)
-        self.logger.info('Entities:%s', entities)
-        combined_results = []
+        self.logger.info('Entities: %s', entities)
+
+        results = []
         for item in entities:
             fund_name = item['fund_name']
 
+            # Finding relevant documents from Document Vector store
+            retrieved_fund_symbols = []
+            try:
+                for doc, doc_relevance_score in self.vector_store.similarity_search_with_relevance_scores(
+                    fund_name, k=NUM_RETRIEVAL_DOCS):
+                    self.logger.info('Relevance score for %s is %s ', doc.page_content, doc_relevance_score)
+                    if doc_relevance_score >= MIN_RELEVANCE_THRESHOLD:
+                        retrieved_fund_symbols.append(doc.metadata['fund_symbol'])
+            except AttributeError:
+                self.logger.exception('Error retrieving funds')
+                return []
+
+            # Finding relevant column names from Column Vector store
+            invalid_keys = {}
             mapped_fund_attribute_keys = ['fund_long_name']
             for fund_attribute in item['fund_attributes']:
-                mapped_fund_attribute_key = self.col_store.similarity_search(fund_attribute['key'], k=1)[0].page_content
-                mapped_fund_attribute_keys.append(mapped_fund_attribute_key)
-            try:
-                retrieved_fund_symbols = []
-                for doc, relevance_score in self.vector_store.similarity_search_with_relevance_scores(fund_name, k=5):
-                    self.logger.info('Relevance score for %s is %s ', doc.page_content, relevance_score)
-                    retrieved_fund_symbols.append(doc.metadata['fund_symbol'])
-            except AttributeError:
-                self.logger.exception('Error faced while fetching relevant documents')
-                return combined_results
-            item_results = []
-            for fund_symbol in retrieved_fund_symbols:
-                relevant_info = self.mutual_fund_data.loc[fund_symbol][mapped_fund_attribute_keys].to_dict()
-                item_results.append(str(relevant_info))
-            combined_results.append(item_results)
-        self.logger.info('Relevant document retrieval finished')
-        return combined_results
+                candidate_result, col_relevance_score = self.col_store.similarity_search_with_relevance_scores(
+                    fund_attribute['key'], k=NUM_RETRIEVAL_COLS)[0]
+                if col_relevance_score < MIN_RELEVANCE_THRESHOLD:
+                    invalid_keys[fund_attribute['key']] = 'Data not avaiable'
+                else:
+                    mapped_fund_attribute_keys.append(candidate_result.page_content)
 
-    def get_context_aware_response(self, query:str):
+            for fund_symbol in retrieved_fund_symbols:
+                relevant_fund_info = self.mutual_fund_data.loc[fund_symbol][mapped_fund_attribute_keys]\
+                    .fillna('Data not available').to_dict()
+                result_entry = {}
+                for key in mapped_fund_attribute_keys:
+                    result_entry[key] = relevant_fund_info.get(key, 'Data not available')
+                result_entry.update(invalid_keys)
+                results.append(relevant_fund_info)
+        self.logger.info('Relevant document retrieval finished')
+        return results
+
+    def generate_context_aware_response(self, query:str):
         '''
         Returns context-aware response to the query by using
         approapriate knowledge base
 
         Parameters:
         ----------
-        query: User query regarding details of funds
+        query: User query regarding details of the mutual funds
 
         Returns:
         -------
         Response from an LLM based on the context provided by the query
         '''
-        self.logger.info('Retrieval-augment response generation started')
-        retrieved_docs = self.get_relevant_documents(query)
-        context = '\n'.join([doc for item in retrieved_docs for doc in item])
+        retrieved_docs = self.retrieve_relevant_documents(query)
 
-        system_prompt = f"""
-You are an intelligent and useful semantic search engine that would get the right information about the right funds.
+        self.logger.info('Retrieval-augmented response generation started')
+        context = '\n'.join([label+': '+str(value) for doc in retrieved_docs for label, value in doc.items()])
+        prompt = f"""
+You are MutualMind, an intelligent and useful semantic search engine that would get the right information about the right funds.
 Context: {context}
 Now the output should be human-readable text which should be based on the above context only and should be as concise as possible unless specified otherwise.
-Do not include any additional info than being asked for.
-Provide correct info from context if possible, else respond saying it's not possible without explictly mentioning the context
+Do not include any additional info than being asked for. Do not answer the query if it's not asking for mutual fund related info that is present in the context.
+Provide correct info from context if possible, else respond saying it's not possible without explictly mentioning anything about context.
 Input: {query}"""
 
-        llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
-        llm = ChatLlamaAPI(client=llama_client, model='llama3-70b', temperature=0)
-        message = SystemMessage(content=system_prompt)
+        # llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
+        # llm = ChatLlamaAPI(client=llama_client, model='llama3-70b', temperature=0.1)
+        llm = ChatOpenAI(model='gpt-4o-mini')
+        message = SystemMessage(content=prompt)
+        # TODO: Response streaming instead of just invocation
         response = llm.invoke([message])
-        print('Retrieval-augment response generation started')
+        self.logger.info('Retrieval-augmented response generation completed')
         return context, response.content
 
 if __name__ == '__main__':
@@ -152,11 +169,11 @@ if __name__ == '__main__':
         if query.lower() == 'stop':
             break
         start_time = time.time()
-        query_context, query_response = semantic_search_engine.get_context_aware_response(query)
+        query_context, query_response = semantic_search_engine.generate_context_aware_response(query)
         end_time = time.time()
-        print('*****************Query Context******************')
+        print('*****************Query Relevant Documents******************')
         print(query_context)
         print('************************************************')
-        print('Your search result is:', query_response)
-        print()
-        print('Time taken:', end_time-start_time)
+        print('Your search result is:')
+        print(query_response)
+        semantic_search_engine.logger.info('Time taken:%s', end_time-start_time)

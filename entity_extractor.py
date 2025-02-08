@@ -2,8 +2,9 @@ import json
 import os
 
 from langchain.schema import SystemMessage
-from llamaapi import LlamaAPI
-from langchain_experimental.llms import ChatLlamaAPI
+# from llamaapi import LlamaAPI
+# from langchain_experimental.llms import ChatLlamaAPI
+from langchain_openai import ChatOpenAI
 
 from logger import get_logger
 
@@ -96,8 +97,9 @@ Now, process the following query:
 """
     logger.info('Started entity extraction')
     prompt += f'Input: "{query}"'
-    llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
-    llm = ChatLlamaAPI(client=llama_client, model='llama3-8b', temperature=0)
+    # llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
+    # llm = ChatLlamaAPI(client=llama_client, model='llama3-8b', temperature=0)
+    llm = ChatOpenAI(model='gpt-4o-mini', temperature=0)
     
     message = SystemMessage(content=prompt)
     response = llm.invoke([message])
