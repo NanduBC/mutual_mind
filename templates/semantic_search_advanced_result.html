@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mutual Mind</title>
+</head>
+<body>
+    <h1>Your query to AI-enhanced search engine was: {{ question }}</h1>
+    <h2>Search Results:</h2>
+    {% for item in results.split('\n') %}
+        <p>{{ item }}</p>
+    {% endfor %}
+    <a href="/">Back to Search</a>
+</body>
+</html>
