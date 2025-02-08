@@ -17,7 +17,10 @@ with open('embedding_model_config.yaml', 'r') as config_file:
     config = yaml.safe_load(config_file)
 
 EMBEDDING_MODEL_NAME = config['embedding_model']['name']
-MIN_RELEVANCE_THRESHOLD = 0.5
+MIN_RELEVANCE_THRESHOLD = 0.4
+NUM_RETRIEVAL_DOCS = 5
+NUM_RETRIEVAL_COLS = 1
+
 
 semantic_search_engine_obj = None
 def get_semantic_search_engine():
@@ -89,27 +92,35 @@ class SemanticSearchEngine:
         for item in entities:
             fund_name = item['fund_name']
 
-            invalid_keys = {}
-            mapped_fund_attribute_keys = ['fund_long_name']
-            for fund_attribute in item['fund_attributes']:
-                candidate_result, col_relevance_score = self.col_store.similarity_search_with_relevance_scores(fund_attribute['key'], k=1)[0]
-                if col_relevance_score < MIN_RELEVANCE_THRESHOLD:
-                    invalid_keys[fund_attribute['key']] = 'Data not avaiable'
-                else:
-                    mapped_fund_attribute_keys.append(candidate_result.page_content)
-
+            # Finding relevant documents from Document Vector store
             retrieved_fund_symbols = []
             try:
-                for doc, doc_relevance_score in self.vector_store.similarity_search_with_relevance_scores(fund_name, k=5):
+                for doc, doc_relevance_score in self.vector_store.similarity_search_with_relevance_scores(
+                    fund_name, k=NUM_RETRIEVAL_DOCS):
                     self.logger.info('Relevance score for %s is %s ', doc.page_content, doc_relevance_score)
                     if doc_relevance_score >= MIN_RELEVANCE_THRESHOLD:
                         retrieved_fund_symbols.append(doc.metadata['fund_symbol'])
             except AttributeError:
                 self.logger.exception('Error retrieving funds')
                 return []
+
+            # Finding relevant column names from Column Vector store
+            invalid_keys = {}
+            mapped_fund_attribute_keys = ['fund_long_name']
+            for fund_attribute in item['fund_attributes']:
+                candidate_result, col_relevance_score = self.col_store.similarity_search_with_relevance_scores(
+                    fund_attribute['key'], k=NUM_RETRIEVAL_COLS)[0]
+                if col_relevance_score < MIN_RELEVANCE_THRESHOLD:
+                    invalid_keys[fund_attribute['key']] = 'Data not avaiable'
+                else:
+                    mapped_fund_attribute_keys.append(candidate_result.page_content)
+
             for fund_symbol in retrieved_fund_symbols:
-                relevant_fund_info = self.mutual_fund_data.loc[fund_symbol][mapped_fund_attribute_keys].fillna('Data not available')
-                result_entry = {key: relevant_fund_info.to_dict().get(key, 'Data not available') for key in mapped_fund_attribute_keys}
+                relevant_fund_info = self.mutual_fund_data.loc[fund_symbol][mapped_fund_attribute_keys]\
+                    .fillna('Data not available').to_dict()
+                result_entry = {}
+                for key in mapped_fund_attribute_keys:
+                    result_entry[key] = relevant_fund_info.get(key, 'Data not available')
                 result_entry.update(invalid_keys)
                 results.append(relevant_fund_info)
         self.logger.info('Relevant document retrieval finished')
@@ -144,6 +155,7 @@ Input: {query}"""
         # llm = ChatLlamaAPI(client=llama_client, model='llama3-70b', temperature=0.1)
         llm = ChatOpenAI(model='gpt-4o-mini')
         message = SystemMessage(content=prompt)
+        # TODO: Response streaming instead of just invocation
         response = llm.invoke([message])
         self.logger.info('Retrieval-augmented response generation completed')
         return context, response.content
@@ -164,7 +176,4 @@ if __name__ == '__main__':
         print('************************************************')
         print('Your search result is:')
         print(query_response)
-        # for query_item in query_response:
-        #     print(query_item)
-        #     print()
         semantic_search_engine.logger.info('Time taken:%s', end_time-start_time)

@@ -16,18 +16,32 @@ def home():
     '''
     return render_template('semantic_search.html')
 
-@app.route('/search', methods=['POST'])
+@app.route('/core_search', methods=['POST'])
 def search():
     '''
-    Renders search page which displays context aware response
+    Renders search page which displays relevant information based
+    on the query
     '''
     query = request.form['question']
     start_time = time.time()
-    context, results = search_engine.get_context_aware_response(query)
+    results = search_engine.retrieve_relevant_documents(query)
+    end_time = time.time()
+    logger.info('Time taken: %s seconds', end_time-start_time)
+    return render_template('semantic_search_result.html', results=results, question=query)
+
+@app.route('/ai_search', methods=['POST'])
+def ai_search():
+    '''
+    Renders search page which displays context-aware relevant information
+    based on the query
+    '''
+    query = request.form['question']
+    start_time = time.time()
+    context, results = search_engine.generate_context_aware_response(query)
     end_time = time.time()
     logger.info(context)
     logger.info('Time taken: %s seconds', end_time-start_time)
-    return render_template('semantic_search_result.html', results=results, question=query)
+    return render_template('semantic_search_advanced_result.html', results=results, question=query)
 
 if __name__ == '__main__':
     search_engine = get_semantic_search_engine()
