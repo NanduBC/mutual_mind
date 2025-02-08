@@ -108,8 +108,8 @@ class SemanticSearchEngine:
                 self.logger.exception('Error retrieving funds')
                 return []
             for fund_symbol in retrieved_fund_symbols:
-                relevant_fund_info = self.mutual_fund_data.loc[fund_symbol][mapped_fund_attribute_keys].to_dict()
-                result_entry = {key: relevant_fund_info.get(key, 'Data not available') for key in mapped_fund_attribute_keys}
+                relevant_fund_info = self.mutual_fund_data.loc[fund_symbol][mapped_fund_attribute_keys].fillna('Data not available')
+                result_entry = {key: relevant_fund_info.to_dict().get(key, 'Data not available') for key in mapped_fund_attribute_keys}
                 result_entry.update(invalid_keys)
                 results.append(relevant_fund_info)
         self.logger.info('Relevant document retrieval finished')
@@ -131,13 +131,13 @@ class SemanticSearchEngine:
         retrieved_docs = self.retrieve_relevant_documents(query)
 
         self.logger.info('Retrieval-augmented response generation started')
-        context = '\n'.join([label+':'+str(value) for doc in retrieved_docs for label, value in doc.items()])
+        context = '\n'.join([label+': '+str(value) for doc in retrieved_docs for label, value in doc.items()])
         prompt = f"""
-You are an intelligent and useful semantic search engine that would get the right information about the right funds.
+You are MutualMind, an intelligent and useful semantic search engine that would get the right information about the right funds.
 Context: {context}
 Now the output should be human-readable text which should be based on the above context only and should be as concise as possible unless specified otherwise.
-Do not include any additional info than being asked for.
-Provide correct info from context if possible, else respond saying it's not possible without explictly mentioning the context
+Do not include any additional info than being asked for. Do not answer the query if it's not asking for mutual fund related info that is present in the context.
+Provide correct info from context if possible, else respond saying it's not possible without explictly mentioning anything about context.
 Input: {query}"""
 
         # llama_client = LlamaAPI(os.environ['LLAMA_API_KEY'])
