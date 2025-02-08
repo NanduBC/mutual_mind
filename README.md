@@ -1,5 +1,5 @@
-# MutualMind
-Getting right info from right funds
+# [MutualMind](https://github.com/NanduBC/mutual_mind)
+Getting right info from right mutual funds
 
 ## Overview
 MutualMind is a semantic search engine which can provide right information about the right funds. A user can input mutual fund related queries to the search engine at it will answer the question based on the dataset provided to it. For this project,  `MutualFunds.csv` from Kaggle has been used as the knowledge base.
@@ -29,6 +29,7 @@ Run the following script to get the Flask app up and running. And paste the url 
 ```
 $ python app.py
 ```
+
 ### 2. Querying through command line
 Alternatively user can type in query through command line after executing the following script
 ```
