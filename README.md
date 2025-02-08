@@ -25,10 +25,12 @@ $ export OPENAI_API_KEY=<YOUR_API_KEY>
 There are two ways of interaction with the semantic search engine. A Flask-based web interface has been developed with minimal set of features where user can input a query and then search for relevent information about the funds. Same set of queries can be run on command line as well.
 
 ### 1. Querying through Web interface
-Run the following script to get the Flask app up and running. And paste the url on a browser to test the app
+Run the following script to get the Flask app up and running. And paste the url on a browser to test the app. Click `Ctrl+C` to stop the webserver
 ```
 $ python app.py
 ```
+![Screenshot_20250208_191855](https://github.com/user-attachments/assets/a4c0be81-10ac-48f7-8295-f7157922ebf7)
+![Screenshot_20250208_191822](https://github.com/user-attachments/assets/5a53afb5-aada-45ec-b57e-ead5b22800fa)
 
 ### 2. Querying through command line
 Alternatively user can type in query through command line after executing the following script
