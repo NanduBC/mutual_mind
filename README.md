@@ -15,9 +15,9 @@ $ pip install -r requirements.txt
 ```
 $ python data_embedding_pipeline.py
 ```
-5. Set LLAMA_API_KEY in environment variable after setting it up in [Llama API console](https://console.llamaapi.com/).
+5. Set `OPENAI_API_KEY` in environment variable after creating the token in [Open AI account](https://platform.openai.com/api-keys)
 ```
-$ export LLAMA_API_KEY=<YOUR_API_KEY>
+$ export OPENAI_API_KEY=<YOUR_API_KEY>
 ```
 
 ## Running Semantic Search Engine
@@ -29,13 +29,11 @@ Run the following script to get the Flask app up and running. And paste the url 
 ```
 $ python app.py
 ```
-<> Add images
 ### 2. Querying through command line
 Alternatively user can type in query through command line after executing the following script
 ```
 $ python semantic_search_engine.py
 ```
 To stop the execution, one can type `Stop`
-// Add images
 
 
