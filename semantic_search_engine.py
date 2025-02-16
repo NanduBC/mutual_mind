@@ -3,6 +3,7 @@ import time
 import yaml
 
 import pandas as pd
+import numpy as np
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 # from llamaapi import LlamaAPI
@@ -71,7 +72,19 @@ class SemanticSearchEngine:
         # TODO: Replace dataframe to SQL as storage and retrieval for fund attributes
         self.mutual_fund_data = pd.read_csv('MutualFunds.csv').set_index('fund_symbol')
 
-    def retrieve_relevant_documents(self, doc_query: str):
+    def retrieve_similar_columns(self, entity):
+        invalid_keys = {}
+        mapped_fund_attribute_keys = ['fund_long_name']
+        for fund_attribute in entity['fund_attributes']:
+            candidate_result, col_relevance_score = self.col_store.similarity_search_with_relevance_scores(
+                fund_attribute['key'], k=NUM_RETRIEVAL_COLS)[0]
+            if col_relevance_score < MIN_RELEVANCE_THRESHOLD:
+                invalid_keys[fund_attribute['key']] = 'Data not avaiable'
+            else:
+                mapped_fund_attribute_keys.append(candidate_result.page_content)
+        return mapped_fund_attribute_keys, invalid_keys
+
+    def retrieve_relevant_documents_dense(self, entities: str):
         """
         Retrieves relevant documents based on fund entities and fund attributes in `doc_query`.
 
@@ -84,10 +97,6 @@ class SemanticSearchEngine:
         A list of documents for each fund name extracted with relevant
         fund attributes present
         """
-        self.logger.info('Relevant document started')
-        entities = extract_fund_entities(doc_query)
-        self.logger.info('Entities: %s', entities)
-
         results = []
         for item in entities:
             fund_name = item['fund_name']
@@ -103,18 +112,7 @@ class SemanticSearchEngine:
             except AttributeError:
                 self.logger.exception('Error retrieving funds')
                 return []
-
-            # Finding relevant column names from Column Vector store
-            invalid_keys = {}
-            mapped_fund_attribute_keys = ['fund_long_name']
-            for fund_attribute in item['fund_attributes']:
-                candidate_result, col_relevance_score = self.col_store.similarity_search_with_relevance_scores(
-                    fund_attribute['key'], k=NUM_RETRIEVAL_COLS)[0]
-                if col_relevance_score < MIN_RELEVANCE_THRESHOLD:
-                    invalid_keys[fund_attribute['key']] = 'Data not avaiable'
-                else:
-                    mapped_fund_attribute_keys.append(candidate_result.page_content)
-
+            mapped_fund_attribute_keys, invalid_keys = self.retrieve_similar_columns(item)
             for fund_symbol in retrieved_fund_symbols:
                 relevant_fund_info = self.mutual_fund_data.loc[fund_symbol][mapped_fund_attribute_keys]\
                     .fillna('Data not available').to_dict()
@@ -125,6 +123,58 @@ class SemanticSearchEngine:
                 results.append(relevant_fund_info)
         self.logger.info('Relevant document retrieval finished')
         return results
+
+    def retrieve_relevant_documents_exact(self, entities):
+        results = []
+        self.logger.info('Exact Keyword-based retrieval started')
+        for entity in entities:
+            fund_name = entity['fund_name']
+            print('Searching', fund_name, '...')
+            mapped_fund_attribute_keys, invalid_keys = self.retrieve_similar_columns(entity)
+            relevant_fund_info = self.mutual_fund_data.query(
+                f"fund_long_name.str.contains('{fund_name}', na=False, case=False)")[mapped_fund_attribute_keys]\
+                .fillna('Data not available').to_dict('records')
+            reranked_fund_info = self.rerank_relevant_documents(relevant_fund_info, entity)
+            for entity in reranked_fund_info:
+                entity.update(invalid_keys)
+            results.extend(reranked_fund_info)
+        self.logger.info('Exact Keyword-based search finished')
+        return results
+
+    def rerank_relevant_documents(self, documents, entity):
+        '''
+        Rerank documents based on entity semantic similarity
+        '''
+        self.logger.info("Starting batch-based reranking process")
+        query_fund_name = entity["fund_name"]
+        query_embedding = np.array(self.embedding_model.embed_query(query_fund_name))
+        fund_names = [doc.get("fund_long_name", "") for doc in documents]
+        if not fund_names:
+            return documents
+        doc_embeddings = np.array(self.embedding_model.embed_documents(fund_names))
+        # Compute similarity on subset of documents
+        similarity_scores = np.dot(doc_embeddings, query_embedding) / (
+            np.linalg.norm(doc_embeddings, axis=1) * np.linalg.norm(query_embedding))
+        sorted_indices = np.argsort(similarity_scores)[::-1]
+        sorted_indices = sorted_indices[:NUM_RETRIEVAL_DOCS]
+        reranked_docs = [documents[i] for i in sorted_indices]
+        self.logger.info("Reranking completed")
+        return reranked_docs
+
+    def retrieve_relevant_documents_hybrid(self, doc_query: str):
+        self.logger.info('Semantic retrieval started')
+        entities = extract_fund_entities(doc_query)
+        self.logger.info('Entities: %s', entities)
+        self.logger.info("Hybrid retrieval started")
+        exact_results = self.retrieve_relevant_documents_exact(entities)
+        if len(exact_results) > 0:
+            self.logger.info("Exact retrieval returned results")
+            return exact_results
+        else:
+            # TODO: Fall back to sparse search (BM25) and then re-rank using dense vectors
+            # instead of just using dense search
+            self.logger.info("Exact retrieval returned no results, falling back to semantic search")
+            return self.retrieve_relevant_documents_dense(entities)
 
     def generate_context_aware_response(self, query:str):
         '''
@@ -139,7 +189,7 @@ class SemanticSearchEngine:
         -------
         Response from an LLM based on the context provided by the query
         '''
-        retrieved_docs = self.retrieve_relevant_documents(query)
+        retrieved_docs = self.retrieve_relevant_documents_hybrid(query)
 
         self.logger.info('Retrieval-augmented response generation started')
         context = '\n'.join([label+': '+str(value) for doc in retrieved_docs for label, value in doc.items()])
@@ -169,11 +219,9 @@ if __name__ == '__main__':
         if query.lower() == 'stop':
             break
         start_time = time.time()
-        query_context, query_response = semantic_search_engine.generate_context_aware_response(query)
+        results = semantic_search_engine.retrieve_relevant_documents_hybrid(query)
         end_time = time.time()
         print('*****************Query Relevant Documents******************')
-        print(query_context)
+        print('\n'.join([label+': '+str(value) for doc in results for label, value in doc.items()]))
         print('************************************************')
-        print('Your search result is:')
-        print(query_response)
         semantic_search_engine.logger.info('Time taken:%s', end_time-start_time)

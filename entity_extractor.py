@@ -25,11 +25,11 @@ Return your answer in JSON with the following keys: "fund_name", "fund_attribute
 Only "value"s can be absent and in that case set them to null.
 
 Example 1:
-Input: "What is the investment strategy of Franklin Income Fund?"
+Input: "What is the investment strategy of Franklin Income Funds?"
 Output:
 [
     {
-        "fund_name": "Franklin Income Fund",
+        "fund_name": "Franklin Income",
         "fund_attributes": [
             {
                 "key": "investment strategy",
@@ -44,10 +44,14 @@ Input: "Sterling funds in large cap growth and their sharpe ratio for 5 years"
 Output:
 [
     {
-        "fund_name": "Sterling funds",
+        "fund_name": "Sterling large",
         "fund_attributes": [
             {
                 "key": "fund_category",
+                "value": "Large Growth"
+            },
+            {
+                "key": "size_type",
                 "value": "Large"
             },
             {
